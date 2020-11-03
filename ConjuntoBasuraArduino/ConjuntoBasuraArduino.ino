@@ -1,4 +1,6 @@
 #include <M5Stack.h>
+#include <ArduinoJson.h>
+#include <WiFi.h>
 
 // paramtros final de carrera
 #define PinGPIOInterruptFinalCarrera G2
@@ -9,8 +11,8 @@ const double cmTopeBasura =30.0; // tamaño de la basura
 const int valorCalibracion=5; 
 const int EchoPin = 17; // receptor sensor
 const int TriggerPin = 16;//emisor sensor
-
 void setup() {
+
   // put your setup code here, to run once:
   M5.begin(true,false,true);
    // set up sensos supersonico
@@ -33,17 +35,34 @@ void setup() {
  * @author JuanCarlos y Angel 
  */
 void final_carrera_activado(){
-  haCalculadoLlenado = false; 
+  haCalculadoLlenado = false;
 }
 
 void loop() {
+  double porcentajeLlenado;
   // put your main code here, to run repeatedly:
   if(!haCalculadoLlenado && !isBasuraAbierta()){
-      calcularLlenado(TriggerPin,EchoPin);
+      
+      porcentajeLlenado = calcularLlenado(TriggerPin,EchoPin);
+      enviarInfoUart(porcentajeLlenado);
       dormirM5Stack();
    }
 
   delay(500);
+}
+
+void enviarInfoUart(double valor){
+
+  StaticJsonDocument<100> doc;
+  doc["id"] = String(WiFi.macAddress()+"%basura");
+  doc["tipoMedida"] = "volumen";
+  //doc["time"] = millis();
+  doc["valor"] = valor;
+  String strJson;
+  serializeJson(doc, strJson);
+  String res = "$$$$"+strJson+"$$$$";
+  Serial.println(res);
+  
 }
 
 /**
@@ -83,7 +102,6 @@ bool isBasuraAbierta(){
 
 // CONFIGURAR PIN GPIO2 A LOW PARA DESPERTAR EL MICRO
 void dormirM5Stack(){
-  Serial.println("DORMIR");
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low
   esp_deep_sleep_start();
   
