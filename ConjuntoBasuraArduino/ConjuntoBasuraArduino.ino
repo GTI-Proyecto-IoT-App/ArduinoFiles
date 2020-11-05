@@ -1,6 +1,7 @@
 #include <M5Stack.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include "basuraInteligente.h"
 
 // paramtros final de carrera
 #define PinGPIOInterruptFinalCarrera G2
@@ -8,20 +9,39 @@ bool haCalculadoLlenado = false;
 
 // parametros sensor supersonico
 const double cmTopeBasura =30.0; // tamaño de la basura
-const int valorCalibracion=5; 
+//const int valorCalibracion=5; 
 const int EchoPin = 17; // receptor sensor
 const int TriggerPin = 16;//emisor sensor
+
+
+
+//inicializacion de la basura
+
+BasuraInteligente basura;
+
 void setup() {
 
   // put your setup code here, to run once:
   M5.begin(true,false,true);
-   // set up sensos supersonico
+  
+  //set up sensos supersonico
   Serial.begin(115200);
-  pinMode(TriggerPin, OUTPUT);
-  pinMode(EchoPin, INPUT);
+  
+  // set up BASURA
 
+  ContenedorInteligente listaContenedores[4];
+  listaContenedores[0] = ContenedorInteligente(EchoPin,TriggerPin,12,cmTopeBasura,20,0.5,"Vidrio"); 
+  listaContenedores[1] = ContenedorInteligente(EchoPin,TriggerPin,12,cmTopeBasura,20,0.5,"Plastico"); 
+  listaContenedores[2] = ContenedorInteligente(EchoPin,TriggerPin,12,cmTopeBasura,20,0.5,"Organico"); 
+  listaContenedores[3] = ContenedorInteligente(EchoPin,TriggerPin,12,cmTopeBasura,20,0.5,"Papel"); 
+
+
+  BasuraInteligente basura(&listaContenedores[0]);
+
+  
   // set up final de carrera
   pinMode(PinGPIOInterruptFinalCarrera, INPUT);
+  
   attachInterrupt(digitalPinToInterrupt(PinGPIOInterruptFinalCarrera),final_carrera_activado,HIGH);
 
   if(isBasuraAbierta()){
@@ -40,60 +60,18 @@ void final_carrera_activado(){
 
 void loop() {
   double porcentajeLlenado;
+  
   // put your main code here, to run repeatedly:
+  
   if(!haCalculadoLlenado && !isBasuraAbierta()){
       
-      porcentajeLlenado = calcularLlenado(TriggerPin,EchoPin);
-      enviarInfoUart(porcentajeLlenado);
+     // porcentajeLlenado = calcularLlenado(TriggerPin,EchoPin);
+      //enviarInfoUart(basura.calcular());
       dormirM5Stack();
    }
 
   delay(500);
 }
-
-void enviarInfoUart(double valor){
-
-  StaticJsonDocument<100> doc;
-  doc["id"] = String(WiFi.macAddress()+"%basura");
-  doc["tipoMedida"] = "volumen";
-  //doc["time"] = millis();
-  doc["valor"] = valor;
-  String strJson;
-  serializeJson(doc, strJson);
-  String res = "$$$$"+strJson+"$$$$";
-  Serial.println(res);
-  
-}
-
-/**
- * N,N-> -> R
- * @author JuanCarlos y Angel 
- * Lee distancia del sensor sonico
- * calculado entro el pin de disparo y pin de recepcion
- * y calcula el porcentaje de llenado de la basura
- */
-double calcularLlenado(int TriggerPin, int EchoPin) {
-  double duracion, distanciaCm,porcentajeLlenadoBasura;
-  digitalWrite(TriggerPin, LOW); //nos aseguramos señal baja
-  delayMicroseconds(4);
-  digitalWrite(TriggerPin, HIGH); //generamos pulso de 10us
-  delayMicroseconds(10);
-  digitalWrite(TriggerPin, LOW);
-  duracion = pulseIn(EchoPin, HIGH); //medimos el tiempo pulso
-  distanciaCm = duracion * 10.0 / 292.0 / 2.0; //convertimos a distancia
-
-  porcentajeLlenadoBasura = 100.0 - ((distanciaCm/cmTopeBasura )*100.0);//conversión a %
-
-  //calibracion
-  if(porcentajeLlenadoBasura > (100-valorCalibracion)){
-    porcentajeLlenadoBasura=100.0;
-  }else if(porcentajeLlenadoBasura < 0){
-    porcentajeLlenadoBasura=0.0;
-  }
-  Serial.println(porcentajeLlenadoBasura);
-  return porcentajeLlenadoBasura;
-}
-
 
 bool isBasuraAbierta(){
   // normalmente cerrado 
