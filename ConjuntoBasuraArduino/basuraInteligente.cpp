@@ -7,12 +7,6 @@
 
 #include "basuraInteligente.h"
 
-//incluimos las siguientes bibiliotecas
-
-#include <ArduinoJson.h>
-#include <string>
-#include <list>
-#include <WiFi.h>
 
 // ---------------------------------------------------
 // Constructor vacio
@@ -25,9 +19,10 @@ BasuraInteligente::BasuraInteligente()
 // Constructor con parametros
 // ---------------------------------------------------
 
-  BasuraInteligente::BasuraInteligente(ContenedorInteligente *listaContenedores)
+  BasuraInteligente::BasuraInteligente(String id,ContenedorInteligente *listaContenedores)
 {
   (*this).listaContenedores = listaContenedores;
+  (*this).id = id;
   //(*this).pinFinalCarrera = pinFinalCarrera;
   
  };
@@ -43,30 +38,31 @@ int BasuraInteligente::getPinFinalCarrera()
 };
 */
 // ---------------------------------------------------
-//    calcular --> JSON
+//    calcular --> String
 // ---------------------------------------------------
 
-  StaticJsonDocument<100> BasuraInteligente::calcular(){
-    
-    StaticJsonDocument<100> doc;
-    StaticJsonDocument<100> medidas;
-    JsonArray array = medidas.to<JsonArray>();
-    
-    
+String BasuraInteligente::calcular(){
+  
+  StaticJsonDocument<100> doc;
+  const size_t CAPACITY = JSON_ARRAY_SIZE(4);
+  StaticJsonDocument<CAPACITY> medidas;
+  
+  JsonArray array = medidas.to<JsonArray>();
+  
 
-     doc["id"] = (WiFi.macAddress()+"%basura");
-     doc["fecha"] = "1212121212121";
-     
-     
-     array.add((*this).listaContenedores[0].calcular()); 
-     array.add((*this).listaContenedores[1].calcular());
-     array.add((*this).listaContenedores[2].calcular());
-     array.add((*this).listaContenedores[3].calcular());
-     
-     doc["medidas"]= array;
-     
-    std::string strJson;
-    serializeJson(doc, strJson);
-    
-    return doc;
-  };
+   doc["id"] = (*this).id;
+   doc["fecha"] = "1212121212121";
+   
+   medidas.add((*this).listaContenedores[1].calcular()); 
+   medidas.add((*this).listaContenedores[1].calcular());
+   medidas.add((*this).listaContenedores[2].calcular());
+   medidas.add((*this).listaContenedores[3].calcular());
+
+   doc["medidas"]= medidas;
+ 
+  String strJson;
+
+  serializeJson(doc, strJson);
+  
+  return strJson;
+};

@@ -13,22 +13,21 @@ AUTOR: SERGI SIRVENT SEMPERE
 
 #include <string>
 #include "contenedorInteligente.h"
-#include <M5Stack.h>
 
 class BasuraInteligente{
   
 
   private:
     ContenedorInteligente *listaContenedores;
-    
+    String id;
     
   public:
 
     BasuraInteligente();
-    BasuraInteligente(ContenedorInteligente *listaContenedores);
+    BasuraInteligente(String id,ContenedorInteligente *listaContenedores);
    
     //int getPinFinalCarrera();
-    StaticJsonDocument<100> calcular();
+    String calcular();
     //void dormirse();
     
 };
