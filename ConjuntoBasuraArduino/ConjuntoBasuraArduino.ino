@@ -1,12 +1,8 @@
 #include <M5Stack.h>
 #include <WiFi.h>
 #include "basuraInteligente.h"
-
-// para obtener la hora de un servidor web
-#include "time.h"
-const char* ntpServer = "hora.rediris.es";
-const long gmtOffset_sec = 3600;
-const int daylightOffset_sec = 3600;
+#include <PubSubClient.h>
+#include "HX711.h"
 
 // paramtros final de carrera
 #define PinGPIOInterruptFinalCarrera G2
@@ -19,8 +15,22 @@ const double cmDistanciaSensorDeBasura = 2.0; // tamaño de la basura
 const uint8_t EchoPin = 17; // receptor sensor
 const uint8_t TriggerPin = 16;//emisor sensor
 
-const char* WifiSSID = "TP-LINK_6FEE";
-const char* wifiPass = "90821950";
+const char* WifiSSID = "MiFibra-EA9E";//"TP-Link_6FEE";
+const char* wifiPass = "bggtPfp9";
+
+// MQTT
+// Add your MQTT Broker IP address, example:
+//const char* mqtt_server = "192.168.1.144";
+const char* mqtt_server = "mqtt.eclipse.org";
+const char* rootMqttClient = "proyectoGTI2A/dispositivo/";
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// bascula
+const int DOUT=3;
+const int CLK=5;
+
+HX711 bascula;
 
 //inicializacion de la basura
 BasuraInteligente basura;
@@ -29,9 +39,13 @@ void setup() {
 
   // put your setup code here, to run once:
   M5.begin(true,false,true);
-  
-  //set up sensos supersonico
-  Serial.begin(115200);
+  Serial.begin(9600);
+
+   // set up wifi y mqtt
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+
+
   
   // set up BASURA
 
@@ -46,17 +60,31 @@ void setup() {
   pinMode(TriggerPin, OUTPUT);
   pinMode(EchoPin, INPUT);
 
-  
+  // balanza
+  Serial.println("Bascula");
+    bascula.begin(DOUT, CLK);
+    Serial.println("Bascula 2");
+    bascula.read();
+    Serial.println("Bascula 2");
+    bascula.set_scale(439430.25); // Establecemos la escala
+    Serial.println("Bascula 4");
+    bascula.tare(20);  //El peso actual es considerado Tara.
+  Serial.println("END Bascula");
+
+  Serial.println("FINAL DE CARRERA");
   // set up final de carrera
   pinMode(PinGPIOInterruptFinalCarrera, INPUT);
   
   attachInterrupt(digitalPinToInterrupt(PinGPIOInterruptFinalCarrera),final_carrera_activado,HIGH);
 
+
+  
   if(isBasuraAbierta()){
     haCalculadoLlenado = true;
   }
-    
+
 }
+
 
 /**
  * Callback interrupcion final de carrera
@@ -67,16 +95,56 @@ void final_carrera_activado(){
   haCalculadoLlenado = false;
 }
 
-void loop() {
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.printf("Connecting to %s ", WifiSSID);
+  WiFi.begin(WifiSSID, wifiPass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" CONNECTED");
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+/**
+ * public un mensaje al servidor mqtt indicandole el topic
+ */
+void publicarMqttAlTopic(String topic,String payload){
   
+  char charBufPayload[payload.length() + 1];
+  payload.toCharArray(charBufPayload,payload.length() + 1);
+
+  char charBufTopic[String(rootMqttClient+topic).length() + 1];
+  String(rootMqttClient+topic).toCharArray(charBufTopic,String(rootMqttClient+topic).length() + 1);
+  Serial.println("Envio datos al mqtt");
+  Serial.println(charBufTopic);
+  Serial.println(charBufPayload);
+  client.publish(charBufTopic, charBufPayload);
+}
+
+void loop() {
+  Serial.println("LOOP");
   // put your main code here, to run repeatedly:
+
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
   
   if(!haCalculadoLlenado && !isBasuraAbierta()){
 
      // porcentajeLlenado = calcularLlenado(TriggerPin,EchoPin);
-    Serial.println(calcular());
-     haCalculadoLlenado = true;
+     String id = WiFi.macAddress()+"%basura";
+      publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
+      haCalculadoLlenado = true;
      //enviarInfoUart(basura.calcular());
+
+     delay(1000);
      dormirM5Stack();
    }else{
     Serial.println("Esta calculando o esta abierta");
@@ -85,35 +153,72 @@ void loop() {
   delay(500);
 }
 
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect("2750508476e341d6b8413239039ae8ac")) {
+      Serial.println("connected");
+     
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+
+// ---------------------------------------------------
+//    calcular --> JSON
+// calcula uno de los cuatro contenedores
+// ---------------------------------------------------
+
+String calcularContenedor(String tipo){
+  
+  String res = "";
+  
+  
+  res = String(res + "\"tipo\":"+ "\""+tipo+"\",");
+  res = String(res + "\"volumen\":"+calcularLlenado()+",");
+  res = String(res + "\"peso\":"+calcularPeso()); 
+
+  return res;
+  
+};
+
 /**
  * Calcular llenado y peso basura
  */
-StaticJsonDocument<100> calcularBasura(){
-  
- StaticJsonDocument<100> doc;
-  const size_t CAPACITY = JSON_ARRAY_SIZE(4);
-  StaticJsonDocument<CAPACITY> medidas;
-  
-  JsonArray array = medidas.to<JsonArray>();
+String calcularBasura(String id){
+
+  String jsonMessage = "{\"id\":";
+
   
 
-   doc["id"] = String(WiFi.macAddress()+"%basura");
-   doc["fecha"] = "1212121212121";
+   jsonMessage = String(jsonMessage + "\"" + id + "\",");
+    jsonMessage = String(jsonMessage+"\"medidas\": [");
+    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("vidrio")+ "},");
+    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("papel")+ "},");
+    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("organico")+ "},");
+    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("plastico")+ "}");
+//  JsonObject  medidasObjVid = medidas.createNestedObject();
+//  JsonObject  medidasObjVid = medidas.createNestedObject();
+//  JsonObject  medidasObjVid = medidas.createNestedObject();
+//  JsonObject  medidasObjVid = medidas.createNestedObject();
+    jsonMessage = String(jsonMessage+"]}");
+//   medidasObjVid["vidrio"] = calcularContenedor();
+//   medidasObj["organico"] = calcularContenedor();
+//   medidasObj["papel"] = calcularContenedor();
+//   medidasObj["plastico"] = calcularContenedor();
    
-   medidas.add((*this).listaContenedores[1].calcular()); 
-   medidas.add((*this).listaContenedores[1].calcular());
-   medidas.add((*this).listaContenedores[2].calcular());
-   medidas.add((*this).listaContenedores[3].calcular());
+   
 
-   doc["medidas"]= medidas;
- 
-  String strJson;
-
-  serializeJson(doc, strJson);
-  
-  return strJson;
+  return jsonMessage;
 };
-
 
 
 /**
@@ -138,12 +243,16 @@ double calcularLlenado() {
 
   duracion = pulseIn(EchoPin/*(*this).echoPinUltrasonico*/, HIGH); //medimos el tiempo pulso
 
+  
   distanciaCm = duracion * 10.0 / 292.0 / 2.0; //convertimos a distancia
-
+  Serial.println("Distancia real");
+   Serial.println(distanciaCm);
   distanciaCm = distanciaCm - cmDistanciaSensorDeBasura;//(*this).distanciaContenedor ;
-
+   Serial.println("Distancia menos la del sensora a la basura");
+  Serial.println(distanciaCm);
   porcentajeLlenadoBasura = 100.0 - (distanciaCm/cmTopeBasura/*(*this).profundidadContenedor*/ )*100.0;//conversión a %
-
+   Serial.println("Porcentaje");
+  Serial.println(porcentajeLlenadoBasura);
 
   //calibracion
   if(porcentajeLlenadoBasura > (100-valorCalibracion)){
@@ -151,30 +260,18 @@ double calcularLlenado() {
   }else if(porcentajeLlenadoBasura < 0){
     porcentajeLlenadoBasura=0.0;
   }
-  
+  Serial.println(porcentajeLlenadoBasura);
+  delay(1000);
   return porcentajeLlenadoBasura;
 }
 
-// ---------------------------------------------------
-//    calcular --> JSON
-// calcula uno de los cuatro contenedores
-// ---------------------------------------------------
 
-StaticJsonDocument<100> calcularContenedor(String tipo){
-  
-  StaticJsonDocument<100> doc1;
-  
-  
-  doc1["tipo"] = tipo;//(*this).tipoContenedor;
-  //doc["peso"] = 
-
-  doc1["volumen"] = calcularLlenado();
-
-  
-
-  return doc1;
-  
-};
+/**
+ * Devuelve el valor actual de la bascula en KG
+ */
+double calcularPeso() {
+  return bascula.get_units(20);
+}
 
 bool isBasuraAbierta(){
   // normalmente cerrado 
@@ -183,7 +280,6 @@ bool isBasuraAbierta(){
 
 // CONFIGURAR PIN GPIO2 A LOW PARA DESPERTAR EL MICRO
 void dormirM5Stack(){
-  Serial.println("DORMIR");
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low Despertar cuando llegue 0
   esp_deep_sleep_start();
   
