@@ -15,8 +15,8 @@ const double cmDistanciaSensorDeBasura = 2.0; // tamaño de la basura
 const uint8_t EchoPin = 17; // receptor sensor
 const uint8_t TriggerPin = 16;//emisor sensor
 
-const char* WifiSSID = "MiFibra-EA9E";//"TP-Link_6FEE";
-const char* wifiPass = "bggtPfp9";
+const char* WifiSSID = "TP-Link_6FEE";//"TP-Link_6FEE";
+const char* wifiPass = "90821950";
 
 // MQTT
 // Add your MQTT Broker IP address, example:
@@ -122,13 +122,10 @@ void publicarMqttAlTopic(String topic,String payload){
   char charBufTopic[String(rootMqttClient+topic).length() + 1];
   String(rootMqttClient+topic).toCharArray(charBufTopic,String(rootMqttClient+topic).length() + 1);
   Serial.println("Envio datos al mqtt");
-  Serial.println(charBufTopic);
-  Serial.println(charBufPayload);
   client.publish(charBufTopic, charBufPayload);
 }
 
 void loop() {
-  Serial.println("LOOP");
   // put your main code here, to run repeatedly:
 
   if (!client.connected()) {
@@ -261,7 +258,6 @@ double calcularLlenado() {
     porcentajeLlenadoBasura=0.0;
   }
   Serial.println(porcentajeLlenadoBasura);
-  delay(1000);
   return porcentajeLlenadoBasura;
 }
 
