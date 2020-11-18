@@ -235,7 +235,7 @@ double calcularLlenado() {
   delayMicroseconds(4);
 
   digitalWrite(TriggerPin/*(*this).triggerPinUltrasonico*/, HIGH); //generamos pulso de 10us
-  
+  delayMicroseconds(10);
   digitalWrite(TriggerPin/*(*this).triggerPinUltrasonico*/, LOW);
 
   duracion = pulseIn(EchoPin/*(*this).echoPinUltrasonico*/, HIGH); //medimos el tiempo pulso
