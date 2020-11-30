@@ -15,9 +15,19 @@ const double cmDistanciaSensorDeBasura = 2.0; // tamaño de la basura
 const uint8_t EchoPin = 17; // receptor sensor
 const uint8_t TriggerPin = 16;//emisor sensor
 
+<<<<<<< Updated upstream
 const char* WifiSSID = "TP-Link_6FEE";//"TP-Link_6FEE";
 const char* wifiPass = "90821950";
 
+=======
+
+const char* WifiSSID = "Wifi-JC";//"TP-Link_6FEE";
+const char* wifiPass = "12345678";
+/*
+const char* WifiSSID = "MiFibra-EA9E";//"TP-Link_6FEE";
+const char* wifiPass = "bggtPfp9";
+*/
+>>>>>>> Stashed changes
 // MQTT
 // Add your MQTT Broker IP address, example:
 //const char* mqtt_server = "192.168.1.144";
