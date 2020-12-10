@@ -15,23 +15,21 @@ const double cmDistanciaSensorDeBasura = 2.0; // tamaño de la basura
 const uint8_t EchoPin = 17; // receptor sensor
 const uint8_t TriggerPin = 16;//emisor sensor
 
-<<<<<<< Updated upstream
-const char* WifiSSID = "TP-Link_6FEE";//"TP-Link_6FEE";
-const char* wifiPass = "90821950";
 
-=======
+//const char* WifiSSID = "TP-Link_701E";//"TP-Link_6FEE";
+//const char* wifiPass = "28333401";
 
-const char* WifiSSID = "Wifi-JC";//"TP-Link_6FEE";
-const char* wifiPass = "12345678";
-/*
-const char* WifiSSID = "MiFibra-EA9E";//"TP-Link_6FEE";
+const char* WifiSSID = "MiFibra-EA9E";
 const char* wifiPass = "bggtPfp9";
-*/
->>>>>>> Stashed changes
+
+
+//const char* WifiSSID = "angle_triangle";
+//const char* wifiPass = "12345678";
+
 // MQTT
 // Add your MQTT Broker IP address, example:
 //const char* mqtt_server = "192.168.1.144";
-const char* mqtt_server = "mqtt.eclipse.org";
+const char* mqtt_server = "broker.hivemq.com";
 const char* rootMqttClient = "proyectoGTI2A/dispositivo/";
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -56,7 +54,6 @@ void setup() {
   client.setServer(mqtt_server, 1883);
 
 
-  
   // set up BASURA
 
 //  ContenedorInteligente listaContenedores[4];
@@ -73,15 +70,11 @@ void setup() {
   // balanza
   Serial.println("Bascula");
     bascula.begin(DOUT, CLK);
-    Serial.println("Bascula 2");
     bascula.read();
-    Serial.println("Bascula 2");
-    bascula.set_scale(439430.25); // Establecemos la escala
-    Serial.println("Bascula 4");
-    bascula.tare(20);  //El peso actual es considerado Tara.
+    //bascula.set_scale(439430.25); // Establecemos la escala
+    bascula.set_scale(-199764);
+    //bascula.tare(20);  //El peso actual es considerado Tara.
   Serial.println("END Bascula");
-
-  Serial.println("FINAL DE CARRERA");
   // set up final de carrera
   pinMode(PinGPIOInterruptFinalCarrera, INPUT);
   
@@ -152,7 +145,7 @@ void loop() {
      //enviarInfoUart(basura.calcular());
 
      delay(1000);
-     dormirM5Stack();
+     //dormirM5Stack();
    }else{
     Serial.println("Esta calculando o esta abierta");
    }
@@ -165,7 +158,13 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("2750508476e341d6b8413239039ae8ac")) {
+    
+// will topic
+  String id = WiFi.macAddress()+"%basura";
+  String willTopic = String(id+"/WillTopic");
+  char charBufTopic[String(rootMqttClient+willTopic).length() + 1];
+  String(rootMqttClient+willTopic).toCharArray(charBufTopic,String(rootMqttClient+willTopic).length() + 1);
+    if (client.connect("2750508476e341d6b8413239039ae8ac", charBufTopic, 1, true, "disconnected")) {
       Serial.println("connected");
      
     } else {
@@ -209,8 +208,8 @@ String calcularBasura(String id){
    jsonMessage = String(jsonMessage + "\"" + id + "\",");
     jsonMessage = String(jsonMessage+"\"medidas\": [");
     jsonMessage = String(jsonMessage+"{"+ calcularContenedor("vidrio")+ "},");
-    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("papel")+ "},");
-    jsonMessage = String(jsonMessage+"{"+ calcularContenedor("organico")+ "},");
+    //jsonMessage = String(jsonMessage+"{"+ calcularContenedor("papel")+ "},");
+    //jsonMessage = String(jsonMessage+"{"+ calcularContenedor("organico")+ "},");
     jsonMessage = String(jsonMessage+"{"+ calcularContenedor("plastico")+ "}");
 //  JsonObject  medidasObjVid = medidas.createNestedObject();
 //  JsonObject  medidasObjVid = medidas.createNestedObject();
@@ -252,21 +251,16 @@ double calcularLlenado() {
 
   
   distanciaCm = duracion * 10.0 / 292.0 / 2.0; //convertimos a distancia
-  Serial.println("Distancia real");
-   Serial.println(distanciaCm);
   distanciaCm = distanciaCm - cmDistanciaSensorDeBasura;//(*this).distanciaContenedor ;
-   Serial.println("Distancia menos la del sensora a la basura");
-  Serial.println(distanciaCm);
   porcentajeLlenadoBasura = 100.0 - (distanciaCm/cmTopeBasura/*(*this).profundidadContenedor*/ )*100.0;//conversión a %
-   Serial.println("Porcentaje");
-  Serial.println(porcentajeLlenadoBasura);
-
+   
   //calibracion
   if(porcentajeLlenadoBasura > (100-valorCalibracion)){
     porcentajeLlenadoBasura=100.0;
   }else if(porcentajeLlenadoBasura < 0){
     porcentajeLlenadoBasura=0.0;
   }
+  Serial.print("Porcentaje:");
   Serial.println(porcentajeLlenadoBasura);
   return porcentajeLlenadoBasura;
 }
@@ -276,7 +270,8 @@ double calcularLlenado() {
  * Devuelve el valor actual de la bascula en KG
  */
 double calcularPeso() {
-  return bascula.get_units(20);
+  //le restamos el peso de la bascula (tara) que siempre sera el mismo
+  return bascula.get_units(20)+41.59;
 }
 
 bool isBasuraAbierta(){
@@ -288,5 +283,4 @@ bool isBasuraAbierta(){
 void dormirM5Stack(){
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low Despertar cuando llegue 0
   esp_deep_sleep_start();
-  
 }
