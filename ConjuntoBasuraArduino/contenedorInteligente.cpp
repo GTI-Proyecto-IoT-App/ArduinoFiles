@@ -8,8 +8,7 @@
 //incluimos las siguientes bibliotecas
 #include "contenedorInteligente.h"
 #include <ArduinoJson.h>
-#include <M5Stack.h>
-
+//#include <SoftwareSerial.h>
 // ---------------------------------------------------
 // Constructor vacio
 // ---------------------------------------------------

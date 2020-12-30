@@ -14,6 +14,7 @@ AUTOR: SERGI SIRVENT SEMPERE
 #define CONTENEDORINTELIGENTE_H
 #include <string>
 #include <ArduinoJson.h>
+//#include <SoftwareSerial.h>
 
 
 class ContenedorInteligente{

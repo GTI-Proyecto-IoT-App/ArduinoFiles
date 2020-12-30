@@ -1,11 +1,24 @@
-#include <M5Stack.h>
-#include <WiFi.h>
+#include <WiFiManager.h>
+
+
+//#include <ESP8266WiFi.h>
+//#include <ESP8266WebServer.h>
+
+
+
+
+//#include <SoftwareSerial.h>
+//#include <WiFi.h>
+//#include  < ESP8266WiFi.h>  
+//#include  < DNSServer.h >  
+//#include  < ESP8266WebServer.h >  
+//#include  < WiFiManager.h >
 #include "basuraInteligente.h"
 #include <PubSubClient.h>
 #include "HX711.h"
 
 // paramtros final de carrera
-#define PinGPIOInterruptFinalCarrera G2
+#define PinGPIOInterruptFinalCarrera 2
 bool haCalculadoLlenado = false;
 
 // parametros sensor supersonico
@@ -19,8 +32,12 @@ const uint8_t TriggerPin = 16;//emisor sensor
 //const char* WifiSSID = "TP-Link_701E";//"TP-Link_6FEE";
 //const char* wifiPass = "28333401";
 
-const char* WifiSSID = "MiFibra-EA9E";
-const char* wifiPass = "bggtPfp9";
+/////////////////////////////////////////////////////const char* WifiSSID = "MiFibra-EA9E";
+/////////////////////////////////////////////////////const char* wifiPass = "bggtPfp9";
+
+
+
+
 
 
 //const char* WifiSSID = "angle_triangle";
@@ -35,7 +52,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // bascula
-const int DOUT=3;
+const int DOUT=4;
 const int CLK=5;
 
 HX711 bascula;
@@ -46,11 +63,39 @@ BasuraInteligente basura;
 void setup() {
 
   // put your setup code here, to run once:
-  M5.begin(true,false,true);
-  Serial.begin(9600);
+  Serial.begin(true,false,true);
+  Serial.begin(115200);//antes tenia este valor 9600 ---------**--
+
+
+
+
+//WiFiManager
+ //Local intialization. Once its business is done, there is no need to keep it around
+ WiFiManager wifiManager;
+ //reset saved settings
+ wifiManager.resetSettings();
+ 
+ //set custom ip for portal
+ //wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
+
+ //fetches ssid and pass from eeprom and tries to connect
+ //if it does not connect it starts an access point with the specified name
+ //here "AutoConnectAP"
+ //and goes into a blocking loop awaiting configuration
+ wifiManager.autoConnect("AutoConnectAP");
+ //or use this for auto generated name ESP + ChipID
+ //wifiManager.autoConnect();
+ 
+ //if you get here you have connected to the WiFi
+ Serial.println("connected...yeey :)");
+
+
+ 
+
+  
 
    // set up wifi y mqtt
-  setup_wifi();
+//  setup_wifi();
   client.setServer(mqtt_server, 1883);
 
 
@@ -97,7 +142,7 @@ void final_carrera_activado(){
  
   haCalculadoLlenado = false;
 }
-
+/*
 void setup_wifi() {
   delay(10);
   // We start by connecting to a WiFi network
@@ -114,7 +159,7 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-/**
+**
  * public un mensaje al servidor mqtt indicandole el topic
  */
 void publicarMqttAlTopic(String topic,String payload){
