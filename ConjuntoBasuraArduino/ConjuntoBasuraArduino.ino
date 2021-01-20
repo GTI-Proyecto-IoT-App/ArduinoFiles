@@ -3,7 +3,7 @@
 #include "HX711.h"
 
 // parametros final de carrera
-#define PinGPIOInterruptFinalCarrera 2
+#define PinGPIOInterruptFinalCarrera G2
 volatile bool haCalculadoLlenado = false;
 
 // parametros sensor supersonico
@@ -88,10 +88,8 @@ void setup() {
  * @author JuanCarlos y Angel 
  */
 void final_carrera_activado(){
- Serial.println("---------------->>>TENGO RETRASO MENTAL");
 
   haCalculadoLlenado = false;
-
  
 }
 
@@ -135,7 +133,7 @@ void loop() {
   if(!isBasuraAbierta() && Flag_ISR_Timer0 == 1){
     
     String id = WiFi.macAddress()+"%basura";
-    publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
+    //publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
     Flag_ISR_Timer0 = 0;
 
    }else{
@@ -252,7 +250,7 @@ double calcularPeso() {
 
 bool isBasuraAbierta(){
   // normalmente cerrado 
-  return !digitalRead(PinGPIOInterruptFinalCarrera);
+  return digitalRead(PinGPIOInterruptFinalCarrera);
 }
 
 // CONFIGURAR PIN GPIO2 A LOW PARA DESPERTAR EL MICRO
