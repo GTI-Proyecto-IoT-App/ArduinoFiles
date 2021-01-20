@@ -4,7 +4,7 @@
 
 // parametros final de carrera
 #define PinGPIOInterruptFinalCarrera 2
-bool haCalculadoLlenado = false;
+volatile bool haCalculadoLlenado = false;
 
 // parametros sensor supersonico
 const double cmTopeBasura =30.0; // tamaño de la basura
@@ -33,6 +33,17 @@ HX711 bascula;
 const int DOUT=4;
 const int CLK=5;
 
+//-----timer----------------
+
+  //Declaracion del manejador del timer
+    hw_timer_t *Timer0 = NULL;
+  //Declaracion flag timer
+    volatile int Flag_ISR_Timer0 = 0;
+  //Rutina de interrupcion del timer
+    void IRAM_ATTR ISR_Timer0(){
+      Flag_ISR_Timer0 = 1;
+    }
+
 
 
 void setup() {
@@ -40,6 +51,17 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(true,false,true);
   Serial.begin(115200);
+
+  //configuracion del timer
+    Timer0 = timerBegin(0,80,true);
+
+  //Configurar interrupcion del timer
+    timerAttachInterrupt(Timer0,&ISR_Timer0,true); 
+
+    //Escribir la alarma
+    timerAlarmWrite(Timer0,5000000,true);   
+    //Habilitar la alarma
+    timerAlarmEnable(Timer0);
  
   //set up wifi y mqtt
   setup_wifi();
@@ -47,7 +69,6 @@ void setup() {
   //config supersonico
   pinMode(TriggerPin, OUTPUT);
   pinMode(EchoPin, INPUT);
-
   // Config bascula
   bascula.begin(DOUT, CLK);
   bascula.read();
@@ -55,7 +76,7 @@ void setup() {
   bascula.set_scale(-199764);
   // set up final de carrera
   pinMode(PinGPIOInterruptFinalCarrera, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PinGPIOInterruptFinalCarrera),final_carrera_activado,HIGH);
+  //attachInterrupt(digitalPinToInterrupt(PinGPIOInterruptFinalCarrera),final_carrera_activado,HIGH);
   if(isBasuraAbierta()){
     haCalculadoLlenado = true;
   }
@@ -67,8 +88,11 @@ void setup() {
  * @author JuanCarlos y Angel 
  */
 void final_carrera_activado(){
- 
+ Serial.println("---------------->>>TENGO RETRASO MENTAL");
+
   haCalculadoLlenado = false;
+
+ 
 }
 
 void setup_wifi() {
@@ -90,7 +114,7 @@ void publicarMqttAlTopic(String topic,String payload){
 
   char charBufTopic[String(rootMqttClient+topic).length() + 1];
   String(rootMqttClient+topic).toCharArray(charBufTopic,String(rootMqttClient+topic).length() + 1);
-  Serial.println("Envio datos al mqtt");
+  Serial.println(payload);
   client.publish(charBufTopic, charBufPayload);
 }
 
@@ -101,17 +125,23 @@ void loop() {
     reconnect();
   }
   client.loop();
+
+  Serial.print("Cerrado: ");
+  Serial.println(!isBasuraAbierta());
+
+  Serial.print("Timer: ");
+  Serial.println(Flag_ISR_Timer0);
   
-  if(!haCalculadoLlenado && !isBasuraAbierta()){
+  if(!isBasuraAbierta() && Flag_ISR_Timer0 == 1){
     
     String id = WiFi.macAddress()+"%basura";
     publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
-    haCalculadoLlenado = true;
-    delay(1000);
-    //dormirM5Stack();
+    Flag_ISR_Timer0 = 0;
+
    }else{
     Serial.println("Esta calculando o esta abierta");
    }
+   
    delay(500);
 }
 
@@ -128,7 +158,9 @@ void reconnect() {
   String(rootMqttClient+willTopic).toCharArray(charBufTopic,String(rootMqttClient+willTopic).length() + 1);
     if (client.connect("2750508476e341d6b8413239039ae8ac", charBufTopic, 1, true, "disconnected")) {
       Serial.println("connected");
-     
+      publicarMqttAlTopic(id+"/WillTopic","conectado");
+      client.setCallback(callback);
+      client.subscribe("proyectoGTI2A/sonoff/POWER");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -227,4 +259,12 @@ bool isBasuraAbierta(){
 void dormirM5Stack(){
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low Despertar cuando llegue 0
   esp_deep_sleep_start();
+}
+
+//cuando se detecte un ON/OFF se leeran los datos
+void callback(char* topic, byte* message, unsigned int length) {
+  if(!isBasuraAbierta()){
+    String id = WiFi.macAddress()+"%basura";
+    publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));  
+  }
 }
