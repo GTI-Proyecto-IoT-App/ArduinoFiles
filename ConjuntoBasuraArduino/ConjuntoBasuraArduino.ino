@@ -35,14 +35,14 @@ const int CLK=5;
 
 //-----timer----------------
 
-  //Declaracion del manejador del timer
-    hw_timer_t *Timer0 = NULL;
-  //Declaracion flag timer
-    volatile int Flag_ISR_Timer0 = 0;
-  //Rutina de interrupcion del timer
-    void IRAM_ATTR ISR_Timer0(){
-      Flag_ISR_Timer0 = 1;
-    }
+//Declaracion del manejador del timer
+  hw_timer_t *Timer0 = NULL;
+//Declaracion flag timer
+  volatile int Flag_ISR_Timer0 = 0;
+//Rutina de interrupcion del timer
+  void IRAM_ATTR ISR_Timer0(){
+    Flag_ISR_Timer0 = 1;
+  }
 
 
 
@@ -50,48 +50,29 @@ void setup() {
 
   // put your setup code here, to run once:
   Serial.begin(true,false,true);
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   //configuracion del timer
-    Timer0 = timerBegin(0,80,true);
-
-  //Configurar interrupcion del timer
-    timerAttachInterrupt(Timer0,&ISR_Timer0,true); 
-
-    //Escribir la alarma
-    timerAlarmWrite(Timer0,5000000,true);   
-    //Habilitar la alarma
-    timerAlarmEnable(Timer0);
+   set_up_timer();
  
   //set up wifi y mqtt
   setup_wifi();
+
+  // setup mqtt server
   client.setServer(mqtt_server, 1883);
+  
   //config supersonico
   pinMode(TriggerPin, OUTPUT);
   pinMode(EchoPin, INPUT);
+  
   // Config bascula
   bascula.begin(DOUT, CLK);
   bascula.read();
   //calibracion
   bascula.set_scale(-199764);
-  // set up final de carrera
-  pinMode(PinGPIOInterruptFinalCarrera, INPUT);
-  //attachInterrupt(digitalPinToInterrupt(PinGPIOInterruptFinalCarrera),final_carrera_activado,HIGH);
-  if(isBasuraAbierta()){
-    haCalculadoLlenado = true;
-  }
+  
 }
 
-
-/**
- * Callback interrupcion final de carrera
- * @author JuanCarlos y Angel 
- */
-void final_carrera_activado(){
-
-  haCalculadoLlenado = false;
- 
-}
 
 void setup_wifi() {
  //reset saved settings
@@ -102,6 +83,18 @@ void setup_wifi() {
  Serial.println("Se ha conectado correctamente");
 }
 
+void set_up_timer(){
+  //configuracion del timer
+    Timer0 = timerBegin(0,80,true);
+
+  //Configurar interrupcion del timer
+    timerAttachInterrupt(Timer0,&ISR_Timer0,true); 
+
+    //Escribir la alarma
+    timerAlarmWrite(Timer0,5000000,true);   
+    //Habilitar la alarma
+    timerAlarmEnable(Timer0);
+}
 
 
 //publica un mensaje al servidor mqtt indicandole el topic 
@@ -124,23 +117,16 @@ void loop() {
   }
   client.loop();
 
-  Serial.print("Cerrado: ");
-  Serial.println(!isBasuraAbierta());
-
-  Serial.print("Timer: ");
-  Serial.println(Flag_ISR_Timer0);
-  
-  if(!isBasuraAbierta() && Flag_ISR_Timer0 == 1){
+  // si la basura esta cerrada y el timer ha terminado se raliza la mesuras  
+  if(isBasuraCerrada() && Flag_ISR_Timer0 == 1){
     
     String id = WiFi.macAddress()+"%basura";
-    //publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
+    publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));
     Flag_ISR_Timer0 = 0;
 
-   }else{
-    Serial.println("Esta calculando o esta abierta");
    }
-   
-   delay(500);
+
+   delay(10);
 }
 
 void reconnect() {
@@ -248,21 +234,23 @@ double calcularPeso() {
   return bascula.get_units(20)+41.59;
 }
 
-bool isBasuraAbierta(){
+bool isBasuraCerrada(){
   // normalmente cerrado 
   return digitalRead(PinGPIOInterruptFinalCarrera);
 }
 
-// CONFIGURAR PIN GPIO2 A LOW PARA DESPERTAR EL MICRO
-void dormirM5Stack(){
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low Despertar cuando llegue 0
-  esp_deep_sleep_start();
-}
 
 //cuando se detecte un ON/OFF se leeran los datos
 void callback(char* topic, byte* message, unsigned int length) {
-  if(!isBasuraAbierta()){
+  if(isBasuraCerrada()){
     String id = WiFi.macAddress()+"%basura";
     publicarMqttAlTopic(id+"/mesuras",calcularBasura(id));  
   }
 }
+
+
+// CONFIGURAR PIN GPIO2 A LOW PARA DESPERTAR EL MICRO
+//void dormirM5Stack(){
+//  esp_sleep_enable_ext0_wakeup(GPIO_NUM_2,0); //1 = High, 0 = Low Despertar cuando llegue 0
+//  esp_deep_sleep_start();
+//}
